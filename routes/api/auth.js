@@ -12,5 +12,6 @@ router
   .post('/register', validateRegistration, authUserController.registration)
   .post('/login', validateLogin, authUserController.login)
   .post('/logout', guard, authUserController.logout)
+  .get('/verify/:token', authUserController.verify)
 
 module.exports = router

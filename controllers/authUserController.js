@@ -1,7 +1,11 @@
+const jwt = require('jsonwebtoken')
 const { HttpCode } = require('../helpers/constants')
-
+const EmailService = require('../service/email')
 const authModel = require('../model/authModel')
 const userModel = require('../model/userModel')
+
+const { v4: uuidv4 } = require('uuid')
+const SECRET_KEY = process.env.JWT_SECRET_KEY
 
 const registration = async (request, response, next) => {
   const { email, password } = request.body
@@ -14,7 +18,15 @@ const registration = async (request, response, next) => {
     })
   }
   try {
-    const newUser = await userModel.createUser({ email, password })
+    const verifyToken = uuidv4()
+    const emailService = new EmailService(process.env.NODE_ENV)
+    await emailService.sendEmail(verifyToken, email)
+    const newUser = await userModel.createUser({
+      email,
+      password,
+      verify: false,
+      verifyToken,
+    })
     return response.status(HttpCode.CREATED).json({
       status: 'success',
       code: HttpCode.CREATED,
@@ -33,10 +45,21 @@ const registration = async (request, response, next) => {
 
 const login = async (request, response, next) => {
   const { email, password } = request.body
+  const user = await userModel.findUserByEmail(email)
+  const isValidPassword = await user?.validPassword(password)
+  if (!user || !isValidPassword || !user.verify) {
+    next({
+      status: HttpCode.UNATHORIZED,
+      message: 'Not verified',
+    })
+  }
+  const id = user.id
+  const payload = { id }
+  const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '1h' })
   try {
     const result = await authModel.login({
-      email,
-      password,
+      id,
+      token,
     })
     if (result) {
       return response.status(HttpCode.OK).json({
@@ -68,8 +91,31 @@ const logout = async (request, response, next) => {
     .json({ status: 'success', code: HttpCode.NO_CONTENT, message: 'Nothing' })
 }
 
+const verify = async (request, response, next) => {
+  try {
+    const user = await userModel.findByVerifyToken(request.params.token)
+    if (user) {
+      await userModel.updateVeryfiToken(user.id, true, null)
+      return response.status(HttpCode.OK).json({
+        status: 'success',
+        code: HttpCode.OK,
+        message: `Verification successful.`,
+      })
+    }
+    next({
+      status: HttpCode.NOT_FOUND,
+      code: HttpCode.NOT_FOUND,
+      data: 'Bad request',
+      message: `Link is not valid, user not found`,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 module.exports = {
   registration,
   login,
   logout,
+  verify,
 }

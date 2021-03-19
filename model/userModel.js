@@ -1,7 +1,5 @@
 const User = require('./schemas/schUser')
 
-// const getCurrentUser = () => {}
-
 const findUserById = async (id) => {
   try {
     const result = await User.findOne({ _id: id })
@@ -24,9 +22,23 @@ const findUserByEmail = async (email) => {
   }
 }
 
-const createUser = async ({ email, password }) => {
-  const user = new User({ email, password })
+const createUser = async ({ email, password, verify, verifyToken }) => {
+  const user = new User({ email, password, verify, verifyToken })
   return user.save()
+}
+
+const findByVerifyToken = async (verifyToken) => {
+  try {
+    const result = await User.findOne({ verifyToken })
+    return result
+  } catch (error) {
+    error.status = 400
+    error.data = 'Bad request'
+    throw error
+  }
+}
+const updateVeryfiToken = async (userId, verify, verifyToken) => {
+  await User.updateOne({ _id: userId }, { verify, verifyToken })
 }
 
 const updateUserToken = async (id, token) => {
@@ -41,6 +53,8 @@ module.exports = {
   findUserById,
   findUserByEmail,
   createUser,
+  findByVerifyToken,
+  updateVeryfiToken,
   updateUserToken,
   updateAvatar,
 }
